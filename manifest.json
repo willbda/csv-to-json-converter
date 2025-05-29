@@ -1,9 +1,9 @@
 {
 	"id": "csv-to-json-converter",
 	"name": "CSV to JSON Converter",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Transform CSV files into custom nested JSON structures using an intuitive visual drag-and-drop interface",
+	"description": "Transform CSV files into JSON, Markdown notes with frontmatter, or Dataview-optimized formats using an intuitive visual drag-and-drop interface",
 	"author": "David Williams",
 	"authorUrl": "https://github.com/your-username",
 	"fundingUrl": "",

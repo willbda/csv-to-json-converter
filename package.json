@@ -1,0 +1,9 @@
+{
+  "name": "csv-to-json-converter",
+  "version": "1.1.0",
+  "description": "Transform CSV files into JSON or Markdown",
+  "main": "main.js",
+  "dependencies": {
+    "papaparse": "^5.5.3"
+  }
+}

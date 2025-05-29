@@ -10,6 +10,13 @@ A powerful Obsidian plugin that transforms CSV files into custom nested JSON str
 
 ## Features
 
+### 📊 Multiple Output Formats (NEW!)
+
+- **JSON Export**: Original nested JSON structure format
+- **Markdown Notes**: Individual .md files with YAML frontmatter
+- **Dataview Optimized**: Markdown notes with Dataview-friendly fields and tags
+- **Batch Processing**: Convert entire CSV files to individual notes
+
 ### 🎨 Visual Structure Builder
 
 - **Drag & Drop Interface**: Visually design your JSON structure by dragging column names
@@ -17,16 +24,21 @@ A powerful Obsidian plugin that transforms CSV files into custom nested JSON str
 - **Structure Validation**: Intelligent validation of your hierarchy design
 - **Level Indicators**: Clear visual feedback showing nesting levels and data storage points
 
-### 📋 Smart Presets
+### 📋 Smart Presets & Templates
 
-- **Hierarchical**: Subject → Type → Project → Item (perfect for organizational data)
-- **Project-Based**: Project → Type → Item (ideal for project management)
-- **Simple Grouping**: First two columns as grouping levels
+- **Built-in Presets**:
+  - Hierarchical: Subject → Type → Project → Item (perfect for organizational data)
+  - Project-Based: Project → Type → Item (ideal for project management)
+  - Simple Grouping: First two columns as grouping levels
+- **Custom Templates**: Save and reuse your own structure configurations
+- **Template Management**: Load, save, and delete structure templates
 - **Clear All**: Reset and start fresh
 
 ### 🔧 Enhanced Processing
 
-- **Flexible Column Handling**: Automatically detects and handles any CSV structure
+- **Robust CSV Parsing**: Handles quoted fields, special characters, and various delimiters
+- **Dynamic Type Detection**: Automatically recognizes numbers, booleans, and dates
+- **Field Validation**: Warns about Dataview reserved fields and special characters
 - **Smart Error Reporting**: Detailed feedback on processing issues
 - **Metadata Preservation**: Includes source row numbers and structure paths
 - **Performance Optimized**: Handles large datasets efficiently
@@ -59,21 +71,32 @@ A powerful Obsidian plugin that transforms CSV files into custom nested JSON str
 1. The plugin automatically lists all CSV files in your vault
 2. Click on a file to select it
 3. Preview the available columns
+4. Check for any Dataview compatibility warnings
 
 #### Step 2: Design Your Structure
 
 1. **Use Presets**: Click preset buttons for common structures
-2. **Custom Design**: Drag column tags to the structure area
-3. **Exclude Columns**: Drag unwanted columns to the exclusion area
-4. **Preview**: Watch the live example update as you build
+2. **Load Template**: Apply a saved structure template
+3. **Custom Design**: Drag column tags to the structure area
+4. **Exclude Columns**: Drag unwanted columns to the exclusion area
+5. **Save Template**: Save your structure for future use
+6. **Preview**: Watch the live example update as you build
 
-#### Step 3: Process & Export
+#### Step 3: Choose Output Format
 
-1. Click "Generate JSON with Custom Structure"
+- **JSON**: Traditional nested JSON structure
+- **Markdown**: Individual notes with frontmatter
+- **Dataview**: Optimized markdown for Dataview queries
+
+#### Step 4: Process & Export
+
+1. Click "Generate Output"
 2. Review processing statistics
 3. Save to vault or copy to clipboard
 
-## JSON Output Structure
+## Output Examples
+
+### JSON Output
 
 The plugin generates structured JSON with metadata:
 
@@ -101,6 +124,44 @@ The plugin generates structured JSON with metadata:
     }
   }
 }
+```
+
+### Markdown/Dataview Output
+
+Creates individual notes with frontmatter:
+
+```markdown
+---
+organization_name: "ServeMN"
+type: "nonprofit"
+category: "volunteer coordination"
+website: "https://servemn.org"
+phone: "555-1234"
+source_file: "organizations.csv"
+source_row: 42
+imported: 2025-05-28T10:30:00Z
+tags:
+  - imported
+  - nonprofit
+  - volunteer-coordination
+---
+
+# ServeMN - nonprofit - volunteer coordination
+
+## Overview
+
+- **Organization Name**: ServeMN
+- **Type**: nonprofit
+- **Category**: volunteer coordination
+
+## Details
+
+- **Website**: https://servemn.org
+- **Phone**: 555-1234
+
+---
+
+*This note was automatically imported from organizations.csv on 5/28/2025.*
 ```
 
 ## Structure Design Rules
@@ -138,13 +199,22 @@ This plugin is based on the standalone CSV to JSON converter and adapted for Obs
 
 ## Roadmap
 
+### What's New in v1.1.0
+
+- ✅ **Dataview Integration**: Generate Dataview-compatible markdown notes
+- ✅ **Template System**: Save and reuse structure configurations
+- ✅ **Robust CSV Parser**: Better handling of complex CSV files
+- ✅ **Multiple Output Formats**: JSON, Markdown, and Dataview-optimized
+- ✅ **Field Validation**: Warnings for problematic column names
+- ✅ **Batch Markdown Generation**: Convert entire CSVs to individual notes
+
 ### Future Improvements
 
-- **XLSX Support**: Support for Excel files
-- **Filtering System**: Advanced row filtering capabilities
-- **Template System**: Save and reuse structure templates
-- **Batch Processing**: Convert multiple files at once
-- **Export Formats**: Additional output formats (YAML, XML, etc.)
+- **XLSX Support**: Direct Excel file support
+- **Advanced Filtering**: Row filtering based on conditions
+- **Data Transformation**: Built-in functions for data cleaning
+- **Multiple File Processing**: Convert multiple CSVs at once
+- **Export Formats**: YAML, XML output options
 
 ## License
 
