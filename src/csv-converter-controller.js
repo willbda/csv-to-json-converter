@@ -1,59 +1,81 @@
+/**
+ * LEARNING NOTE: The Controller Pattern
+ * 
+ * This is the "brain" of the application. It doesn't do the work itself,
+ * but it coordinates between different modules and manages state.
+ * 
+ * Think of it like a conductor of an orchestra:
+ * - CSVProcessor = violin section (handles CSV data)
+ * - OutputGenerator = brass section (creates outputs)
+ * - TemplateManager = percussion (handles templates)
+ * - Controller = conductor (coordinates everything)
+ * 
+ * Benefits:
+ * - UI doesn't need to know about CSV parsing details
+ * - CSV parsing doesn't need to know about UI state
+ * - Each piece can be tested independently
+ * - Easy to swap out implementations
+ */
+
 const CSVProcessor = require('./csv-processor');
 const OutputGenerator = require('./output-generator');
 const TemplateManager = require('./template-manager');
 const Utils = require('./utils');
 const CONSTANTS = require('./constants');
 
-/**
- * Main controller that orchestrates CSV processing workflow
- * Separates business logic from UI components
- */
 class CSVConverterController {
   constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
+    this.app = app;      // Obsidian app reference
+    this.plugin = plugin; // Plugin instance
     
-    // Initialize components
+    // LEARNING: Composition over inheritance
+    // Instead of making Controller extend CSVProcessor, we compose it with instances
     this.csvProcessor = new CSVProcessor();
     this.outputGenerator = new OutputGenerator(app);
     this.templateManager = new TemplateManager(plugin);
     
-    // State management
+    // LEARNING: State management in controller
+    // The controller keeps track of user choices and current state
     this.state = {
-      currentStructure: [],
-      excludedColumns: [],
-      outputFormat: CONSTANTS.OUTPUT_FORMATS.JSON,
-      outputFolder: '',
-      lastProcessedData: null
+      currentStructure: [],                           // User's column arrangement
+      excludedColumns: [],                            // Columns to ignore
+      outputFormat: CONSTANTS.OUTPUT_FORMATS.JSON,   // Default output format
+      outputFolder: '',                               // Where to save files
+      lastProcessedData: null                         // Cache of last result
     };
     
-    // Event listeners
+    // LEARNING: Event system for loose coupling
+    // Instead of tight coupling, we use events to notify interested parties
     this.listeners = new Map();
   }
 
   /**
-   * Initialize the controller
-   * @returns {Promise<void>}
+   * LEARNING: Initialization pattern
+   * Some setup needs to happen after construction (like loading saved data)
    */
   async initialize() {
     await this.templateManager.loadTemplates();
-    this.emit('initialized');
+    this.emit('initialized');  // Tell anyone listening that we're ready
   }
 
   /**
-   * Load CSV file from vault
-   * @param {TFile} file - Obsidian file object
-   * @returns {Promise<object>} Load results
+   * LEARNING: File loading with error handling
+   * Notice how this method handles both success and failure gracefully
    */
   async loadCSVFile(file) {
     try {
+      // LEARNING: Delegate file reading to Obsidian API
       const content = await this.app.vault.read(file);
+      
+      // LEARNING: Delegate CSV processing to our CSVProcessor
       const result = await this.csvProcessor.parseCSV(content, file.basename);
       
       if (result.success) {
-        // Reset state for new file
+        // LEARNING: Reset state when loading new file
         this.state.currentStructure = [];
         this.state.excludedColumns = [];
+        
+        // LEARNING: Emit event with data - UI can listen and update itself
         this.emit('fileLoaded', {
           file: file,
           columns: this.csvProcessor.columns,
@@ -74,8 +96,8 @@ class CSVConverterController {
   }
 
   /**
-   * Get list of CSV files in vault
-   * @returns {TFile[]} Array of CSV files
+   * LEARNING: Simple delegation method
+   * Controller doesn't need to know HOW to get CSV files, just that it needs them
    */
   getCSVFiles() {
     return this.app.vault.getFiles()
@@ -84,14 +106,15 @@ class CSVConverterController {
   }
 
   /**
-   * Update structure configuration
-   * @param {string[]} structure - Column names in order
-   * @param {string[]} excluded - Excluded column names
+   * LEARNING: State management with event notification
+   * When state changes, notify anyone who cares
    */
   updateStructure(structure, excluded = []) {
+    // LEARNING: Array spread operator for safe copying
     this.state.currentStructure = [...structure];
     this.state.excludedColumns = [...excluded];
     
+    // LEARNING: Emit structured event data
     this.emit('structureChanged', {
       structure: this.state.currentStructure,
       excluded: this.state.excludedColumns,
@@ -100,19 +123,19 @@ class CSVConverterController {
   }
 
   /**
-   * Add column to structure
-   * @param {string} column - Column name to add
-   * @param {number} position - Position to insert (optional)
+   * LEARNING: Command pattern methods
+   * Each user action becomes a method that modifies state and emits events
    */
   addToStructure(column, position = -1) {
+    // LEARNING: Input validation
     if (!this.csvProcessor.columns.includes(column)) {
       throw new Error(`Column "${column}" not found in CSV data`);
     }
 
-    // Remove from excluded if present
+    // LEARNING: Remove from excluded if present (mutual exclusivity)
     this.state.excludedColumns = this.state.excludedColumns.filter(col => col !== column);
 
-    // Add to structure
+    // LEARNING: Array insertion at specific position
     if (position >= 0 && position < this.state.currentStructure.length) {
       this.state.currentStructure.splice(position, 0, column);
     } else {
@@ -126,10 +149,6 @@ class CSVConverterController {
     });
   }
 
-  /**
-   * Remove column from structure
-   * @param {string} column - Column name to remove
-   */
   removeFromStructure(column) {
     this.state.currentStructure = this.state.currentStructure.filter(col => col !== column);
     
@@ -140,19 +159,15 @@ class CSVConverterController {
     });
   }
 
-  /**
-   * Add column to excluded list
-   * @param {string} column - Column name to exclude
-   */
   addToExcluded(column) {
     if (!this.csvProcessor.columns.includes(column)) {
       throw new Error(`Column "${column}" not found in CSV data`);
     }
 
-    // Remove from structure if present
+    // LEARNING: Remove from structure if present
     this.state.currentStructure = this.state.currentStructure.filter(col => col !== column);
 
-    // Add to excluded
+    // LEARNING: Avoid duplicates
     if (!this.state.excludedColumns.includes(column)) {
       this.state.excludedColumns.push(column);
     }
@@ -164,10 +179,6 @@ class CSVConverterController {
     });
   }
 
-  /**
-   * Remove column from excluded list
-   * @param {string} column - Column name to restore
-   */
   removeFromExcluded(column) {
     this.state.excludedColumns = this.state.excludedColumns.filter(col => col !== column);
     
@@ -179,8 +190,8 @@ class CSVConverterController {
   }
 
   /**
-   * Apply a preset configuration
-   * @param {string} presetId - Preset identifier
+   * LEARNING: Preset application
+   * Shows how to use constants for configuration
    */
   applyPreset(presetId) {
     const preset = CONSTANTS.PRESETS[presetId.toUpperCase()];
@@ -191,10 +202,10 @@ class CSVConverterController {
     let structure = [];
     
     if (preset.id === 'simple') {
-      // Simple preset uses first two available columns
+      // LEARNING: Array.slice for taking first N elements
       structure = this.csvProcessor.columns.slice(0, 2);
     } else {
-      // Other presets try to match specific column names
+      // LEARNING: Array.filter to find matching columns
       structure = preset.columns.filter(col => 
         this.csvProcessor.columns.includes(col)
       );
@@ -209,16 +220,12 @@ class CSVConverterController {
     });
   }
 
-  /**
-   * Clear all structure configuration
-   */
   clearStructure() {
     this.updateStructure([], []);
   }
 
   /**
-   * Set output format
-   * @param {string} format - Output format
+   * LEARNING: Format selection with validation
    */
   setOutputFormat(format) {
     if (!Object.values(CONSTANTS.OUTPUT_FORMATS).includes(format)) {
@@ -229,17 +236,13 @@ class CSVConverterController {
     this.emit('outputFormatChanged', format);
   }
 
-  /**
-   * Set output folder
-   * @param {string} folder - Folder path
-   */
   setOutputFolder(folder) {
     this.state.outputFolder = folder;
   }
 
   /**
-   * Generate preview content
-   * @returns {string} Preview content
+   * LEARNING: Delegation to appropriate module
+   * Controller doesn't generate previews, it delegates to OutputGenerator
    */
   generatePreview() {
     if (!this.isStructureValid()) {
@@ -255,8 +258,8 @@ class CSVConverterController {
   }
 
   /**
-   * Process CSV data with current configuration
-   * @returns {Promise<object>} Processing results
+   * LEARNING: Main processing coordination
+   * Controller orchestrates the work but doesn't do it
    */
   async processData() {
     if (!this.csvProcessor.hasData) {
@@ -268,6 +271,7 @@ class CSVConverterController {
     }
 
     try {
+      // LEARNING: Delegate processing to CSVProcessor
       const processedData = this.csvProcessor.processData({
         structure: this.state.currentStructure,
         excludedColumns: this.state.excludedColumns,
@@ -278,13 +282,14 @@ class CSVConverterController {
 
       let result;
       if (this.state.outputFormat === CONSTANTS.OUTPUT_FORMATS.JSON) {
+        // LEARNING: Delegate JSON generation to OutputGenerator
         result = {
           type: 'json',
           content: this.outputGenerator.generateJSON(processedData),
           data: processedData
         };
       } else {
-        // Markdown/Dataview
+        // LEARNING: Delegate markdown generation
         const outputFolder = this.state.outputFolder || `Imported/${this.csvProcessor.name}`;
         const markdownResults = await this.outputGenerator.generateMarkdownFiles(processedData, outputFolder);
         
@@ -310,9 +315,7 @@ class CSVConverterController {
   }
 
   /**
-   * Save output to vault
-   * @param {object} processResult - Result from processData()
-   * @returns {Promise<string>} Path of saved file
+   * LEARNING: File saving coordination
    */
   async saveToVault(processResult) {
     try {
@@ -338,10 +341,7 @@ class CSVConverterController {
   }
 
   /**
-   * Save current structure as template
-   * @param {string} name - Template name
-   * @param {string} description - Template description
-   * @returns {Promise<boolean>} Success status
+   * LEARNING: Template management delegation
    */
   async saveTemplate(name, description = '') {
     if (!this.isStructureValid()) {
@@ -361,18 +361,13 @@ class CSVConverterController {
     return success;
   }
 
-  /**
-   * Load template by name
-   * @param {string} name - Template name
-   * @returns {boolean} Success status
-   */
   loadTemplate(name) {
     const template = this.templateManager.getTemplate(name);
     if (!template) {
       return false;
     }
 
-    // Validate template against current columns
+    // LEARNING: Template validation against current data
     const validation = this.templateManager.validateTemplate(name, this.csvProcessor.columns);
     if (!validation.valid) {
       this.emit('templateValidationFailed', {
@@ -397,11 +392,6 @@ class CSVConverterController {
     return true;
   }
 
-  /**
-   * Delete template
-   * @param {string} name - Template name
-   * @returns {Promise<boolean>} Success status
-   */
   async deleteTemplate(name) {
     const success = await this.templateManager.deleteTemplate(name);
     if (success) {
@@ -410,20 +400,20 @@ class CSVConverterController {
     return success;
   }
 
-  // Getters for state
+  // LEARNING: Getter properties for clean access to state
   get csvFiles() { return this.getCSVFiles(); }
   get currentFile() { return this.csvProcessor.name; }
   get columns() { return this.csvProcessor.columns; }
   get hasData() { return this.csvProcessor.hasData; }
-  get structure() { return [...this.state.currentStructure]; }
+  get structure() { return [...this.state.currentStructure]; }  // Safe copy
   get excludedColumns() { return [...this.state.excludedColumns]; }
   get outputFormat() { return this.state.outputFormat; }
   get outputFolder() { return this.state.outputFolder; }
   get templates() { return this.templateManager.getAllTemplates(); }
 
   /**
-   * Get available data columns (not in structure or excluded)
-   * @returns {string[]} Available data columns
+   * LEARNING: Computed properties
+   * These calculate values based on current state
    */
   getDataColumns() {
     return this.csvProcessor.columns.filter(col =>
@@ -432,23 +422,15 @@ class CSVConverterController {
     );
   }
 
-  /**
-   * Check if current structure is valid
-   * @returns {boolean} True if structure is valid
-   */
   isStructureValid() {
     return this.csvProcessor.hasData && this.state.currentStructure.length > 0;
   }
 
-  /**
-   * Get processing statistics
-   * @returns {object} Statistics object
-   */
   getStatistics() {
     const csvStats = this.csvProcessor.getStatistics();
     
     return {
-      ...csvStats,
+      ...csvStats,  // LEARNING: Spread operator to merge objects
       structureLength: this.state.currentStructure.length,
       excludedCount: this.state.excludedColumns.length,
       dataColumns: this.getDataColumns().length,
@@ -456,7 +438,10 @@ class CSVConverterController {
     };
   }
 
-  // Event system
+  /**
+   * LEARNING: Event system implementation
+   * This is a simple observer pattern - objects can listen for events
+   */
   on(event, callback) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
@@ -475,6 +460,8 @@ class CSVConverterController {
 
   emit(event, data) {
     if (!this.listeners.has(event)) return;
+    
+    // LEARNING: Error handling in event callbacks
     this.listeners.get(event).forEach(callback => {
       try {
         callback(data);
@@ -485,7 +472,8 @@ class CSVConverterController {
   }
 
   /**
-   * Clean up resources
+   * LEARNING: Cleanup method
+   * Good practice to clean up resources when done
    */
   destroy() {
     this.listeners.clear();

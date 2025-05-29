@@ -5,5 +5,12 @@
   "main": "main.js",
   "dependencies": {
     "papaparse": "^5.5.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  },
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --outfile=main.js --external:obsidian --format=cjs",
+    "dev": "npm run build -- --watch"
   }
 }

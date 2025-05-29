@@ -1,31 +1,43 @@
-const { parse } = require('papaparse');
+/**
+ * LEARNING NOTE: Why This Architecture Matters
+ * 
+ * This file shows a key pattern: separating DATA PROCESSING from UI
+ * The CSVProcessor class doesn't know about modals, buttons, or DOM elements
+ * It just handles CSV data - this makes it:
+ * - Testable (no UI dependencies)
+ * - Reusable (could work in Node.js, web workers, etc.)
+ * - Focused (single responsibility)
+ */
+
+const { parse } = require('papaparse');  // LEARNING: Destructuring import
 const Utils = require('./utils');
 const CONSTANTS = require('./constants');
 
 /**
- * CSV Processing and Data Management
- * Handles CSV parsing, validation, and data structure operations
+ * LEARNING: Class-based organization
+ * This class has INSTANCE variables (not static) because each CSV file
+ * needs its own data storage. Multiple CSVProcessor instances can exist.
  */
 class CSVProcessor {
   constructor() {
-    this.csvData = null;
-    this.csvColumns = [];
-    this.fileName = '';
-    this.parseErrors = [];
-    this.parseWarnings = [];
+    // LEARNING: Instance variables - each instance gets its own copy
+    this.csvData = null;        // Parsed CSV rows
+    this.csvColumns = [];       // Column names from header row
+    this.fileName = '';         // Source filename for reference
+    this.parseErrors = [];      // Parsing errors from PapaParse
+    this.parseWarnings = [];    // Our custom warnings
   }
 
   /**
-   * Parse CSV content
-   * @param {string} content - Raw CSV content
-   * @param {string} fileName - Name of the source file
-   * @returns {Promise<object>} Parse results
+   * LEARNING: Async/await pattern for file processing
+   * CSV parsing might be slow for large files, so we make it async
+   * This prevents blocking the UI thread
    */
   async parseCSV(content, fileName) {
     try {
       this.fileName = fileName;
       
-      // Validate content
+      // LEARNING: Input validation - fail fast with clear messages
       if (!content || typeof content !== 'string') {
         throw new Error('Invalid CSV content provided');
       }
@@ -34,35 +46,38 @@ class CSVProcessor {
         throw new Error('CSV file is empty');
       }
 
-      // Parse with PapaParse
+      // LEARNING: PapaParse configuration object
+      // Each option solves a common CSV parsing problem
       const parseResult = parse(content, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        transformHeader: (header) => header.trim(),
-        delimitersToGuess: [',', '\\t', '|', ';']
+        header: true,              // First row becomes column names
+        dynamicTyping: true,       // Convert "123" to number 123
+        skipEmptyLines: true,      // Ignore blank rows
+        transformHeader: (header) => header.trim(), // Clean column names
+        delimitersToGuess: [',', '\t', '|', ';']   // Try different separators
       });
 
-      // Store results
+      // LEARNING: Store results in instance variables
       this.csvData = parseResult.data;
       this.csvColumns = parseResult.meta.fields || [];
       this.parseErrors = parseResult.errors || [];
       
-      // Process warnings
+      // LEARNING: Process warnings separately from errors
       this.parseWarnings = [];
       if (parseResult.errors.length > 0) {
+        // LEARNING: Array methods - filter and map
         this.parseWarnings = parseResult.errors
-          .filter(error => error.type !== 'Delimiter')
+          .filter(error => error.type !== 'Delimiter') // Skip delimiter warnings
           .map(error => `Row ${error.row}: ${error.message}`);
       }
 
-      // Validate columns
+      // LEARNING: Additional validation using our Utils
       const validation = Utils.validateDataviewColumns(this.csvColumns);
-      this.parseWarnings.push(...validation.warnings);
+      this.parseWarnings.push(...validation.warnings); // ...spread operator
 
-      // Additional validations
+      // LEARNING: Private method call - method starts with _
       this._validateData();
 
+      // LEARNING: Return structured result instead of just throwing/not throwing
       return {
         success: true,
         rowCount: this.csvData.length,
@@ -72,6 +87,7 @@ class CSVProcessor {
       };
 
     } catch (error) {
+      // LEARNING: Error handling - reset state and return error info
       this.csvData = null;
       this.csvColumns = [];
       return {
@@ -84,8 +100,8 @@ class CSVProcessor {
   }
 
   /**
-   * Validate parsed data
-   * @private
+   * LEARNING: Private method pattern (convention, not enforced)
+   * Methods starting with _ are meant for internal use only
    */
   _validateData() {
     if (!this.csvData || this.csvData.length === 0) {
@@ -96,13 +112,12 @@ class CSVProcessor {
       throw new Error('No column headers found in CSV');
     }
 
-    // Check for duplicate column names
+    // LEARNING: Call other private methods to organize validation
     const duplicates = this._findDuplicateColumns();
     if (duplicates.length > 0) {
       this.parseWarnings.push(`Duplicate column names found: ${duplicates.join(', ')}`);
     }
 
-    // Check data consistency
     const inconsistencies = this._checkDataConsistency();
     if (inconsistencies.length > 0) {
       this.parseWarnings.push(...inconsistencies);
@@ -110,34 +125,33 @@ class CSVProcessor {
   }
 
   /**
-   * Find duplicate column names
-   * @private
-   * @returns {string[]} Array of duplicate column names
+   * LEARNING: Set-based duplicate detection
+   * Sets automatically handle uniqueness for us
    */
   _findDuplicateColumns() {
-    const seen = new Set();
-    const duplicates = new Set();
+    const seen = new Set();        // Track what we've seen
+    const duplicates = new Set();  // Track duplicates
 
     this.csvColumns.forEach(col => {
       if (seen.has(col)) {
-        duplicates.add(col);
+        duplicates.add(col);  // Already seen = duplicate
       } else {
-        seen.add(col);
+        seen.add(col);        // First time seeing this
       }
     });
 
-    return Array.from(duplicates);
+    return Array.from(duplicates); // Convert Set back to Array
   }
 
   /**
-   * Check data consistency
-   * @private
-   * @returns {string[]} Array of consistency warnings
+   * LEARNING: Data quality analysis
+   * This method shows functional programming patterns
    */
   _checkDataConsistency() {
     const warnings = [];
     
-    // Check for completely empty columns
+    // LEARNING: Array.filter and Array.every combination
+    // Find columns where EVERY row is empty
     const emptyColumns = this.csvColumns.filter(col => {
       return this.csvData.every(row => Utils.isEmpty(row[col]));
     });
@@ -146,7 +160,7 @@ class CSVProcessor {
       warnings.push(`Empty columns detected: ${emptyColumns.join(', ')}`);
     }
 
-    // Check for mostly empty columns (>90% empty)
+    // LEARNING: More complex filtering - columns >90% empty
     const sparseColumns = this.csvColumns.filter(col => {
       const emptyCount = this.csvData.filter(row => Utils.isEmpty(row[col])).length;
       return (emptyCount / this.csvData.length) > 0.9;
@@ -160,15 +174,15 @@ class CSVProcessor {
   }
 
   /**
-   * Generate preview data for structure building
-   * @param {number} maxRows - Maximum rows to include in preview
-   * @returns {object} Preview data
+   * LEARNING: Data preview for UI
+   * Limit the amount of data returned to avoid UI slowdown
    */
   generatePreview(maxRows = CONSTANTS.MAX_PREVIEW_ROWS) {
     if (!this.csvData || this.csvData.length === 0) {
       return { columns: [], preview: [], totalRows: 0 };
     }
 
+    // LEARNING: Array.slice for safe copying
     const previewRows = this.csvData.slice(0, maxRows);
     
     return {
@@ -180,9 +194,8 @@ class CSVProcessor {
   }
 
   /**
-   * Process data according to structure configuration
-   * @param {object} config - Processing configuration
-   * @returns {object} Processed data
+   * LEARNING: Main processing method - this is where the magic happens
+   * Takes configuration and returns structured data
    */
   processData(config) {
     const { structure, excludedColumns, outputFormat } = config;
@@ -191,17 +204,18 @@ class CSVProcessor {
       throw new Error('No data or structure configuration provided');
     }
 
-    // Validate structure columns exist
+    // LEARNING: Validation before processing
     const missingColumns = structure.filter(col => !this.csvColumns.includes(col));
     if (missingColumns.length > 0) {
       throw new Error(`Structure references missing columns: ${missingColumns.join(', ')}`);
     }
 
-    // Get data columns (not in structure or excluded)
+    // LEARNING: Calculate data columns (columns not used for structure or excluded)
     const dataColumns = this.csvColumns.filter(col => 
       !structure.includes(col) && !excludedColumns.includes(col)
     );
 
+    // LEARNING: Strategy pattern - different processing based on output format
     switch (outputFormat) {
       case CONSTANTS.OUTPUT_FORMATS.JSON:
         return this._processToJSON(structure, dataColumns, excludedColumns);
@@ -214,14 +228,15 @@ class CSVProcessor {
   }
 
   /**
-   * Process data to JSON structure
-   * @private
+   * LEARNING: JSON structure building
+   * This is the core algorithm that creates nested JSON from flat CSV data
    */
   _processToJSON(structure, dataColumns, excludedColumns) {
+    // LEARNING: Create metadata object first
     const result = {
       metadata: {
         sourceFile: this.fileName,
-        structure: structure.join(' → '),
+        structure: structure.join(' → '),  // Human-readable structure description
         dataColumns: dataColumns,
         excludedColumns: excludedColumns,
         totalEntries: this.csvData.length,
@@ -230,32 +245,34 @@ class CSVProcessor {
       data: {}
     };
 
-    // Process each row
+    // LEARNING: Process each CSV row
     this.csvData.forEach((row, index) => {
-      let current = result.data;
+      let current = result.data;  // Start at the root of our data structure
 
-      // Navigate/create structure
+      // LEARNING: Build nested structure level by level
       structure.forEach((col, level) => {
         const key = this._generateKey(row[col], col, index);
 
         if (level === structure.length - 1) {
-          // Leaf level - store data
+          // LEARNING: Leaf level - this is where we store the actual data
           const dataObject = {};
           
+          // Add all the data columns
           dataColumns.forEach(dataCol => {
             dataObject[dataCol] = row[dataCol];
           });
           
+          // LEARNING: Add metadata to each data object
           dataObject._metadata = { 
-            sourceRow: index + 1,
+            sourceRow: index + 1,  // 1-based row numbers for humans
             structurePath: structure.map(structCol => row[structCol]).join(' → ')
           };
           
           current[key] = dataObject;
         } else {
-          // Intermediate level
-          current[key] = current[key] || {};
-          current = current[key];
+          // LEARNING: Intermediate level - create nested object and traverse into it
+          current[key] = current[key] || {};  // Create if doesn't exist
+          current = current[key];             // Move deeper into structure
         }
       });
     });
@@ -264,14 +281,15 @@ class CSVProcessor {
   }
 
   /**
-   * Process data for markdown generation
-   * @private
+   * LEARNING: Markdown data preparation
+   * Instead of generating markdown here, we prepare data for the OutputGenerator
+   * This separation keeps each class focused on its responsibility
    */
   _processToMarkdownData(structure, dataColumns, excludedColumns, outputFormat) {
     const markdownData = [];
 
     this.csvData.forEach((row, index) => {
-      // Generate filename components
+      // LEARNING: Generate filename from structure columns
       const filenameParts = structure.map(col => {
         const value = row[col] || `Empty_${col}`;
         return Utils.generateSafeFilename(String(value));
@@ -279,21 +297,20 @@ class CSVProcessor {
 
       const filename = filenameParts.join(' - ') + '.md';
 
-      // Prepare data for markdown generation
+      // LEARNING: Organize data by purpose
       const rowData = {
         filename,
         sourceRow: index + 1,
-        structureData: {},
-        contentData: {},
-        allData: { ...row }
+        structureData: {},  // Data used for structure/hierarchy
+        contentData: {},    // Data that goes in content
+        allData: { ...row } // Complete row data for reference
       };
 
-      // Structure data
+      // LEARNING: Separate structure data from content data
       structure.forEach(col => {
         rowData.structureData[col] = row[col];
       });
 
-      // Content data  
       dataColumns.forEach(col => {
         rowData.contentData[col] = row[col];
       });
@@ -301,6 +318,7 @@ class CSVProcessor {
       markdownData.push(rowData);
     });
 
+    // LEARNING: Return structured data package
     return {
       format: outputFormat,
       structure,
@@ -313,12 +331,12 @@ class CSVProcessor {
   }
 
   /**
-   * Generate a safe key for JSON structure
-   * @private
+   * LEARNING: Key generation for JSON structure
+   * Handles empty/null values gracefully
    */
   _generateKey(value, columnName, rowIndex) {
     if (Utils.isEmpty(value)) {
-      return `Empty_${columnName}_${rowIndex}`;
+      return `Empty_${columnName}_${rowIndex}`;  // Unique key for empty values
     }
     
     const str = String(value).trim();
@@ -326,8 +344,8 @@ class CSVProcessor {
   }
 
   /**
-   * Get current data statistics
-   * @returns {object} Statistics object
+   * LEARNING: Statistics for UI display
+   * Returns useful information about the current state
    */
   getStatistics() {
     if (!this.csvData) {
@@ -345,7 +363,8 @@ class CSVProcessor {
   }
 
   /**
-   * Clear all data
+   * LEARNING: Cleanup method
+   * Good practice to provide a way to reset state
    */
   clear() {
     this.csvData = null;
@@ -355,7 +374,8 @@ class CSVProcessor {
     this.parseWarnings = [];
   }
 
-  // Getters
+  // LEARNING: Getter methods provide clean access to internal state
+  // These are read-only properties that external code can access
   get data() { return this.csvData; }
   get columns() { return this.csvColumns; }
   get name() { return this.fileName; }
